@@ -26,52 +26,56 @@ namespace TwitchLib.PubSub
         private readonly List<string> _topicList = new List<string>();
 
         #region Events
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub Service is connected.</summary>
         public event EventHandler OnPubSubServiceConnected;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub Service has an error.</summary>
         public event EventHandler<OnPubSubServiceErrorArgs> OnPubSubServiceError;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub Service is closed.</summary>
         public event EventHandler OnPubSubServiceClosed;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives any response.</summary>
         public event EventHandler<OnListenResponseArgs> OnListenResponse;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice a viewer gets a timeout.</summary>
         public event EventHandler<OnTimeoutArgs> OnTimeout;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice a viewer gets banned.</summary>
         public event EventHandler<OnBanArgs> OnBan;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice a viewer gets unbanned.</summary>
         public event EventHandler<OnUnbanArgs> OnUnban;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice a viewer gets a timeout removed.</summary>
         public event EventHandler<OnUntimeoutArgs> OnUntimeout;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that the channel being listened to is hosting another channel.</summary>
         public event EventHandler<OnHostArgs> OnHost;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that Sub-Only Mode gets turned on.</summary>
         public event EventHandler<OnSubscribersOnlyArgs> OnSubscribersOnly;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that Sub-Only Mode gets turned off.</summary>
         public event EventHandler<OnSubscribersOnlyOffArgs> OnSubscribersOnlyOff;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that chat gets cleared.</summary>
         public event EventHandler<OnClearArgs> OnClear;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that Emote-Only Mode gets turned on.</summary>
         public event EventHandler<OnEmoteOnlyArgs> OnEmoteOnly;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that Emote-Only Mode gets turned off.</summary>
         public event EventHandler<OnEmoteOnlyOffArgs> OnEmoteOnlyOff;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that the chat option R9kBeta gets turned on.</summary>
         public event EventHandler<OnR9kBetaArgs> OnR9kBeta;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that the chat option R9kBeta gets turned off.</summary>
         public event EventHandler<OnR9kBetaOffArgs> OnR9kBetaOff;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice of a bit donation.</summary>
         public event EventHandler<OnBitsReceivedArgs> OnBitsReceived;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice of a commerce transaction.</summary>
         public event EventHandler<OnChannelCommerceReceivedArgs> OnChannelCommerceReceived;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that the stream of the channel being listened to goes online.</summary>
         public event EventHandler<OnStreamUpArgs> OnStreamUp;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice that the stream of the channel being listened to goes offline.</summary>
         public event EventHandler<OnStreamDownArgs> OnStreamDown;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives notice view count has changed.</summary>
         public event EventHandler<OnViewCountArgs> OnViewCount;
-        /// <summary>EventHandler for named event.</summary>
+        /// <summary>Fires when PubSub receives a whisper.</summary>
         public event EventHandler<OnWhisperArgs> OnWhisper;
-        /// <summary>EventHandler for channel subscriptions.</summary>
+        /// <summary>Fires when PubSub receives notice when the channel being listened to gets a subscription.</summary>
         public event EventHandler<OnChannelSubscriptionArgs> OnChannelSubscription;
+        /// <summary>Fires when PubSub receives a message sent to the specified extension on the specified channel.</summary>
+        public event EventHandler<OnChannelExtensionBroadcastArgs> OnChannelExtensionBroadcast;
+        /// <summary>Fires when PubSub receives notice when a user follows the designated channel.</summary>
+        public event EventHandler<OnFollowArgs> OnFollow;
         #endregion
 
         /// <summary>
@@ -141,7 +145,9 @@ namespace TwitchLib.PubSub
                         foreach (var request in _previousRequests)
                         {
                             if (string.Equals(request.Nonce, resp.Nonce, StringComparison.CurrentCultureIgnoreCase))
+                            {
                                 OnListenResponse?.Invoke(this, new OnListenResponseArgs { Response = resp, Topic = request.Topic, Successful = resp.Successful });
+                            }
                         }
                         return;
                     }
@@ -246,6 +252,10 @@ namespace TwitchLib.PubSub
                                     PurchaseMessage = cce.PurchaseMessage
                                 });
                             return;
+                        case "channel-ext-v1":
+                            var cEB = msg.MessageData as ChannelExtensionBroadcast;
+                            OnChannelExtensionBroadcast?.Invoke(this, new OnChannelExtensionBroadcastArgs { Messages = cEB.Messages });
+                            break;
                         case "video-playback":
                             var vP = msg.MessageData as VideoPlayback;
                             switch (vP?.Type)
@@ -260,6 +270,11 @@ namespace TwitchLib.PubSub
                                     OnViewCount?.Invoke(this, new OnViewCountArgs { ServerTime = vP.ServerTime, Viewers = vP.Viewers });
                                     return;
                             }
+                            break;
+                        case "following":
+                            var f = msg.MessageData as Following;
+                            f.FollowedChannelId = msg.Topic.Split('.')[1];
+                            OnFollow?.Invoke(this, new OnFollowArgs { FollowedChannelId = f.FollowedChannelId, DisplayName = f.DisplayName, UserId = f.UserId, Username = f.Username });
                             break;
                     }
                     break;
@@ -320,6 +335,14 @@ namespace TwitchLib.PubSub
         }
 
         #region Listeners
+        /// <summary>
+        /// Sends a request to listenOn follows coming into a specified channel.
+        /// </summary>
+        /// <param name="channelTwitchId">Channel ID to watch for new followers on.</param>
+        public void ListenToFollows(string channelId)
+        {
+            ListenToTopic($"following.{channelId}");
+        }
 
         /// <summary>
         /// Sends a request to listenOn timeouts and bans in a specific channel
@@ -332,6 +355,16 @@ namespace TwitchLib.PubSub
         }
 
         /// <summary>
+        /// Sends a request to ListenOn EBS broadcasts sent to a specific extension on a specific channel.
+        /// </summary>
+        /// <param name="channelId">Id of the channel that the extension lives on.</param>
+        /// <param name="extensionId"></param>
+        public void ListenToChannelExtensionBroadcast(string channelId, string extensionId)
+        {
+            ListenToTopic($"channel-ext-v1.{channelId}-{extensionId}-broadcast");
+        }
+
+        /// <summary>
         /// Sends request to listenOn bits events in specific channel
         /// </summary>
         /// <param name="channelTwitchId">Channel Id of channel to listen to bits on (can be fetched from TwitchApi)</param>
@@ -340,6 +373,15 @@ namespace TwitchLib.PubSub
             ListenToTopic($"channel-bits-events-v1.{channelTwitchId}");
         }
 
+        /// <summary>
+        /// Sends request to listenOn channel commerce events in specific channel
+        /// </summary>
+        /// <param name="channelName">Name of channel to listen to commerce events in.</param>
+        public void ListenToCommerce(string channelName)
+        {
+            ListenToTopic($"channel-commerce-events-v1.{channelName}");
+        }
+        
         /// <summary>
         /// Sends request to listenOn video playback events in specific channel
         /// </summary>
